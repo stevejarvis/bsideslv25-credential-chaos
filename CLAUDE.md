@@ -47,7 +47,7 @@ A Makefile in the root of demo/ should have targets to build and deploy everythi
 Since this is going to be a live demo, please use engaging output in make commands. So it's easy to follow on screen on stage.
 
 Values to follow:
-* This is a live demo. Be exciting and engaging.
+* This is a live demo. Be exciting and engaging while not over the top.
 * Do not be overly verbose, stick to the point. We don't have long and punchiness is more important than intense detail.
 * All infra and apps should be ephemeral. Fully created and destroyed with simple make targets.
 

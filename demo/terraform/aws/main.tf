@@ -9,7 +9,8 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
+  profile = "bsideslv25"
 }
 
 # Data sources
@@ -22,10 +23,10 @@ module "eks" {
   version = "~> 20.0"
 
   cluster_name    = var.cluster_name
-  cluster_version = "1.28"
+  cluster_version = "1.31"
   
   vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
+  subnet_ids = module.vpc.public_subnets
 
   # Enable IRSA
   enable_irsa = true
@@ -37,7 +38,7 @@ module "eks" {
       max_size     = 1
       desired_size = 1
       
-      instance_types = ["t3.small"]
+      instance_types = ["t3.micro"]
       capacity_type  = "ON_DEMAND"
       
       # Ensure node groups are destroyed before cluster
@@ -71,8 +72,8 @@ module "vpc" {
   private_subnets = ["10.0.1.0/24"]
   public_subnets  = ["10.0.101.0/24"]
 
-  enable_nat_gateway = true
-  enable_vpn_gateway = true
+  enable_nat_gateway = false
+  enable_vpn_gateway = false
   
   enable_dns_hostnames = true
   enable_dns_support   = true
@@ -91,7 +92,7 @@ resource "aws_ecr_repository" "eks_to_azure" {
   force_delete         = true
 
   image_scanning_configuration {
-    scan_on_push = true
+    scan_on_push = false
   }
 
   tags = var.tags

@@ -38,11 +38,12 @@ resource "azurerm_kubernetes_cluster" "demo" {
   location            = azurerm_resource_group.demo.location
   resource_group_name = azurerm_resource_group.demo.name
   dns_prefix          = var.cluster_name
+  kubernetes_version  = "1.31"
 
   default_node_pool {
     name       = "default"
     node_count = 1
-    vm_size    = "Standard_B2s"
+    vm_size    = "Standard_B1s"
   }
 
   identity {

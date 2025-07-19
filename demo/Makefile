@@ -16,18 +16,17 @@ PROJECT_NAME := credential-chaos
 AWS_REGION := us-west-2
 AZURE_REGION := westus2
 
-# Check required environment variables and authentication
+# Check required authentication
 check-env:
-	@echo "$(CYAN)🔍 Checking required environment variables and authentication...$(RESET)"
-	# Do as I say not as I do ;) this is a demo
-	@test -n "$(AWS_ACCESS_KEY_ID)" || (echo "$(RED)❌ AWS_ACCESS_KEY_ID not set$(RESET)" && exit 1)
-	@test -n "$(AWS_SECRET_ACCESS_KEY)" || (echo "$(RED)❌ AWS_SECRET_ACCESS_KEY not set$(RESET)" && exit 1)
+	@echo "$(CYAN)🔍 Checking authentication...$(RESET)"
+	@echo "$(CYAN)🔐 Checking AWS profile 'bsideslv25'...$(RESET)"
+	@aws sts get-caller-identity --profile bsideslv25 > /dev/null || (echo "$(RED)❌ AWS profile 'bsideslv25' not configured or invalid$(RESET)" && exit 1)
 	@echo "$(CYAN)🔐 Checking Azure CLI authentication...$(RESET)"
 	@az account show > /dev/null || (echo "$(RED)❌ Azure CLI not authenticated. Run 'az login'$(RESET)" && exit 1)
-	@echo "$(GREEN)✅ AWS credentials and Azure CLI authentication verified!$(RESET)"
+	@echo "$(GREEN)✅ AWS profile 'bsideslv25' and Azure CLI authentication verified!$(RESET)"
 
 # Deploy everything
-deploy: #check-env
+deploy: check-env
 	@echo "$(BLUE)🚀 BSides Las Vegas 2025 - Credential Chaos Demo$(RESET)"
 	@echo "$(YELLOW)📊 Deploying cross-cloud authentication infrastructure...$(RESET)"
 	@echo ""
@@ -173,7 +172,7 @@ help:
 	@echo "  $(GREEN)help$(RESET)    - Show this help message"
 	@echo ""
 	@echo "$(CYAN)Required setup:$(RESET)"
-	@echo "  AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY"
+	@echo "  AWS profile 'bsideslv25' configured in ~/.aws/credentials"
 	@echo "  Azure CLI authenticated (run 'az login')"
 
 # Default target

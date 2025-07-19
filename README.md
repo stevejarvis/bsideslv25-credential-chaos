@@ -18,7 +18,6 @@ See a live demonstration of cross-cloud authentication - AWS EKS and Azure AKS c
 
 ### 📊 Presentation Materials
 - **`diagrams/`** - Excalidraw diagrams showing secret sprawl problems and solutions
-- **`CFP.md`** - Complete call for papers submission with talk outline
 
 ### 🚀 Live Demo
 - **`demo/`** - Full working cross-cloud authentication demo
@@ -70,7 +69,7 @@ make destroy
 
 ## Cost & Complexity
 
-- **Demo cost**: ~$6-7/day while running
+- **Demo cost**: ~$2-3/day while running (fully optimized: single-node, no NAT Gateway)
 - **Deploy time**: ~15 minutes
 - **Destroy time**: ~5 minutes
 - **Secrets managed**: **0** 🎉
