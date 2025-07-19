@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workload-identity-sa
+  namespace: demo
+  annotations:
+    azure.workload.identity/client-id: "${AZURE_CLIENT_ID}"
+  labels:
+    azure.workload.identity/use: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aks-to-aws
+  namespace: demo
+  labels:
+    app: aks-to-aws
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aks-to-aws
+  template:
+    metadata:
+      labels:
+        app: aks-to-aws
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: workload-identity-sa
+      containers:
+      - name: aks-to-aws
+        image: ${ACR_SERVER}/aks-to-aws:latest
+        imagePullPolicy: Always
+        env:
+        - name: AWS_ROLE_ARN
+          value: "${AWS_ROLE_ARN}"
+        - name: AZURE_CLIENT_ID
+          value: "${AZURE_CLIENT_ID}"
+        - name: AZURE_TENANT_ID
+          value: "${AZURE_TENANT_ID}"
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: AWS_REGION
+          value: "us-west-2"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aks-to-aws
+  namespace: demo
+  labels:
+    app: aks-to-aws
+spec:
+  selector:
+    app: aks-to-aws
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
