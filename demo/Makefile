@@ -3,7 +3,7 @@
 
 .PHONY: all deploy destroy build push verify clean help
 
-# Color codes for engaging output
+# Color codes for pretty output
 GREEN := \033[0;32m
 YELLOW := \033[1;33m
 RED := \033[0;31m
@@ -11,12 +11,10 @@ BLUE := \033[0;34m
 CYAN := \033[0;36m
 RESET := \033[0m
 
-# Demo configuration
 PROJECT_NAME := credential-chaos
 AWS_REGION := us-west-2
 AZURE_REGION := westus2
 
-# Check required authentication
 check-env:
 	@echo "$(CYAN)🔍 Checking authentication...$(RESET)"
 	@echo "$(CYAN)🔐 Checking AWS profile 'bsideslv25'...$(RESET)"
@@ -25,7 +23,6 @@ check-env:
 	@az account show > /dev/null || (echo "$(RED)❌ Azure CLI not authenticated. Run 'az login'$(RESET)" && exit 1)
 	@echo "$(GREEN)✅ AWS profile 'bsideslv25' and Azure CLI authentication verified!$(RESET)"
 
-# Deploy everything
 deploy: check-env
 	@echo "$(BLUE)🚀 BSides Las Vegas 2025 - Credential Chaos Demo$(RESET)"
 	@echo "$(YELLOW)📊 Deploying cross-cloud authentication infrastructure...$(RESET)"
@@ -38,9 +35,8 @@ deploy: check-env
 	@$(MAKE) deploy-apps
 	@echo ""
 	@echo "$(GREEN)🎉 Demo deployment complete!$(RESET)"
-	@echo "$(CYAN)🔧 Run 'make verify' to test authentication$(RESET)"
 
-# Deploy Azure infrastructure first (without cognito dependency)
+# Deploy Azure infrastructure first (without knowing the Cognito details)
 deploy-azure-initial:
 	@echo "$(BLUE)☁️  Deploying Azure infrastructure (initial)...$(RESET)"
 	@cd terraform/azure && terraform init
@@ -72,8 +68,8 @@ deploy-azure-final:
 
 # Build Docker images
 build:
-	@echo "$(BLUE)🐳 Building Docker images...$(RESET)"
-	@echo "$(YELLOW)📦 Building AKS to AWS application...$(RESET)"
+	@echo "$(BLUE)🐳📦 Building Docker images...$(RESET)"
+	@echo "$(YELLOW) Building AKS to AWS application...$(RESET)"
 	@cd apps/aks-to-aws && docker build --platform linux/amd64 -t aks-to-aws:latest .
 	@echo "$(YELLOW)📦 Building EKS to Azure application...$(RESET)"
 	@cd apps/eks-to-azure && docker build --platform linux/amd64 -t eks-to-azure:latest .
@@ -151,13 +147,6 @@ destroy:
 		2>/dev/null || echo "$(CYAN)AWS destruction completed (some resources may have been already deleted)$(RESET)"
 	@echo "$(GREEN)✅ Demo infrastructure destroyed!$(RESET)"
 
-# Clean local Docker images
-clean:
-	@echo "$(BLUE)🧹 Cleaning local Docker images...$(RESET)"
-	@docker rmi -f aks-to-aws:latest eks-to-azure:latest || true
-	@docker system prune -f
-	@echo "$(GREEN)✅ Local cleanup complete!$(RESET)"
-
 # Show help
 help:
 	@echo "$(BLUE)BSides Las Vegas 2025 - Credential Chaos Demo$(RESET)"
@@ -168,7 +157,6 @@ help:
 	@echo "  $(GREEN)destroy$(RESET) - Clean up all resources"
 	@echo "  $(GREEN)build$(RESET)   - Build Docker images"
 	@echo "  $(GREEN)push$(RESET)    - Push images to registries"
-	@echo "  $(GREEN)clean$(RESET)   - Clean local Docker images"
 	@echo "  $(GREEN)help$(RESET)    - Show this help message"
 	@echo ""
 	@echo "$(CYAN)Required setup:$(RESET)"

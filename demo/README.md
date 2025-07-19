@@ -88,3 +88,14 @@ kubectl describe pod -n demo -l app=eks-to-azure
 # Check Azure workload identity
 kubectl describe pod -n demo -l app=aks-to-aws
 ```
+
+## Demo Notes
+Ideas for making this a good demo. Can't actually deploy it all from scratch, it's too slow. EKS/AKS take 20 minutes to be ready. Plus that's just watching TF say "still waiting".
+
+Alternatively can't just have it all up and say "look it works". So thinking it'll be mostly up but borken at a few key points, maybe:
+
+1. IRSA and/or EWID misconfigured, didn't get an OIDC token from k8s 
+2. AWS target role not configured to trust Entra, and/or Entra SP not configured to trust Cognito
+3. Actual application
+
+I like that breakdown because they're the keys and it's basically one mistake at 3 levels, the cloud infra, the k8s, and the app itself. Great touch points.

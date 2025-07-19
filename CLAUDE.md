@@ -40,7 +40,7 @@ Demo success is verified by:
 3. **Azure Activity Log**: Shows EKS workload using Entra identity
 4. **Zero Secrets**: `kubectl get secrets` shows no manually managed credentials
 
-Please document the design in @ARCHITECTURE.md. Create it if it doesn't exist and keep it updated on changes. Include diagrams of key authorization flows, created with Mermaid. Do not be overly verbose, though, keep to the point and know I value conciseness. 
+Please document the design in @demo/ARCHITECTURE.md. Create it if it doesn't exist and keep it updated on changes. Include diagrams of key authorization flows, created with Mermaid. Do not be overly verbose, though, keep to the point and know I value conciseness. 
 
 A Makefile in the root of demo/ should have targets to build and deploy everything, in addition to destroying when done. Assume the credentials necessary to deploy apps to each platform are available in environment variables (for me to deploy this, the applications at runtime should not require any secrets at all, that's the point).
 
