@@ -46,29 +46,40 @@ def get_oidc_token_from_identity_pool():
         print(f"🔍 AWS Account: {caller_identity['Account']}")
         print(f"🔍 Assumed Role: {caller_identity['Arn']}")
         
-        # Get the Identity Pool ID from environment
+        # Get the Identity Pool ID and EKS OIDC issuer from environment
         identity_pool_id = os.environ.get('COGNITO_IDENTITY_POOL_ID')
-        if not identity_pool_id:
-            print("❌ COGNITO_IDENTITY_POOL_ID not configured")
+        eks_oidc_issuer = os.environ.get('EKS_OIDC_ISSUER_URL')
+        
+        if not identity_pool_id or not eks_oidc_issuer:
+            print("❌ COGNITO_IDENTITY_POOL_ID or EKS_OIDC_ISSUER_URL not configured")
             return None
+        
+        # Read the IRSA token from the projected service account volume
+        with open('/var/run/secrets/eks.amazonaws.com/serviceaccount/token', 'r') as f:
+            irsa_token = f.read().strip()
+        
+        print(f"✅ Got IRSA token for Cognito authentication")
+        print(f"🔍 EKS OIDC Issuer: {eks_oidc_issuer}")
         
         identity_client = boto3.client('cognito-identity', region_name='us-west-2')
         
-        # This will implicitly use the IRSA-assumed IAM role via botocore session
+        # Call get_id with proper Logins map containing the IRSA token
+        eks_oidc_issuer = eks_oidc_issuer.replace('https://', '', 1)
         response = identity_client.get_id(
             IdentityPoolId=identity_pool_id,
             Logins={
-                'cognito-identity.amazonaws.com': caller_identity['Arn']
+                eks_oidc_issuer: irsa_token
             }
         )
         
         identity_id = response['IdentityId']
         print(f"✅ Got Cognito Identity ID: {identity_id}")
         
+        # Get the OpenID token with the same Logins map
         token_response = identity_client.get_open_id_token(
             IdentityId=identity_id,
             Logins={
-                'cognito-identity.amazonaws.com': caller_identity['Arn']
+                eks_oidc_issuer: irsa_token
             }
         )
         
@@ -94,7 +105,6 @@ def get_azure_credential():
             print(f"   Issuer (iss): {payload.get('iss', 'N/A')}")
             print(f"   Audience (aud): {payload.get('aud', 'N/A')}")
             print(f"   Subject (sub): {payload.get('sub', 'N/A')}")
-            print(f"   All claims: {json.dumps(payload, indent=2)}")
             
         # Azure configuration
         tenant_id = os.environ.get('AZURE_TENANT_ID')

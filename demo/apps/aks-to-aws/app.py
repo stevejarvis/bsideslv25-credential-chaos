@@ -50,7 +50,6 @@ def get_kubernetes_jwt():
             print(f"   Issuer (iss): {payload.get('iss', 'N/A')}")
             print(f"   Audience (aud): {payload.get('aud', 'N/A')}")
             print(f"   Subject (sub): {payload.get('sub', 'N/A')}")
-            print(f"   All claims: {json.dumps(payload, indent=2)}")
         
         return k8s_jwt
         

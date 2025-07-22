@@ -42,6 +42,8 @@ spec:
           value: "${AZURE_SUBSCRIPTION_ID}"
         - name: COGNITO_IDENTITY_POOL_ID
           value: "${COGNITO_IDENTITY_POOL_ID}"
+        - name: EKS_OIDC_ISSUER_URL
+          value: "${EKS_OIDC_ISSUER_URL}"
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:

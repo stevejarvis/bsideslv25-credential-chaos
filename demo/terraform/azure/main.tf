@@ -91,8 +91,10 @@ resource "azuread_application_federated_identity_credential" "eks_workload" {
   display_name   = "EKSWorkloadCredential"
   description    = "Federated identity for EKS workload using Cognito JWT"
   audiences      = [var.cognito_identity_pool_id]
-  issuer         = var.cognito_issuer_url
-  subject        = "system:serviceaccount:demo:workload-identity-sa"
+  issuer         = "https://cognito-identity.amazonaws.com"
+  # This is based on the session name, not really predictable, Entra could use 
+  # subject pattern matching. NOTE may change if not using pattern matching.
+  subject        = "us-west-2:2c77d3eb-0314-cced-e1dd-78c975110436"
 }
 
 # Role assignment for EKS workload service principal

@@ -161,13 +161,27 @@ resource "aws_iam_role_policy" "aks_workload_policy" {
   })
 }
 
-
 # Cognito Identity Pool for OIDC token issuing to Azure
 resource "aws_cognito_identity_pool" "cross_cloud" {
   identity_pool_name = "CrossCloudIdentityPool"
   allow_unauthenticated_identities = false
   
+  openid_connect_provider_arns = [module.eks.oidc_provider_arn]
+  
+  allow_classic_flow = true
+
   tags = var.tags
+}
+
+# Cognito Identity Pool Role Attachment
+resource "aws_cognito_identity_pool_roles_attachment" "cross_cloud" {
+  identity_pool_id = aws_cognito_identity_pool.cross_cloud.id
+
+  roles = {
+    "authenticated" = aws_iam_role.eks_workload_role.arn
+  }
+  
+  depends_on = [aws_cognito_identity_pool.cross_cloud, aws_iam_role.eks_workload_role]
 }
 
 

@@ -105,9 +105,10 @@ deploy-apps:
 	@ECR_URI=$$(cd terraform/aws && terraform output -raw ecr_repository_url) \
 	 EKS_WORKLOAD_ROLE_ARN=$$(cd terraform/aws && terraform output -raw eks_workload_role_arn) \
 	 AZURE_TENANT_ID=$$(cd terraform/azure && terraform output -raw tenant_id) \
-	 AZURE_CLIENT_ID=$$(cd terraform/azure && terraform output -raw eks_workload_service_principal_id) \
+	 AZURE_CLIENT_ID=$$(cd terraform/azure && terraform output -raw eks_workload_client_id) \
 	 AZURE_SUBSCRIPTION_ID=$$(az account show --query id -o tsv) \
 	 COGNITO_IDENTITY_POOL_ID=$$(cd terraform/aws && terraform output -raw cognito_identity_pool_id) \
+	 EKS_OIDC_ISSUER_URL=$$(cd terraform/aws && terraform output -raw cluster_oidc_issuer_url) \
 	 envsubst < k8s/eks-deployment.yaml | kubectl apply -f -
 	@echo "$(GREEN)✅ Applications deployed!$(RESET)"
 
