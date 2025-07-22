@@ -23,15 +23,11 @@ output "eks_workload_service_principal_id" {
   value       = azuread_service_principal.eks_workload.object_id
 }
 
-output "aks_workload_service_principal_id" {
-  description = "Service principal ID for AKS workload"
-  value       = azuread_service_principal.aks_workload.object_id
+output "eks_workload_client_id" {
+  description = "Client ID for EKS workload"
+  value       = azuread_application.eks_workload.application_id
 }
 
-output "aks_workload_client_id" {
-  description = "Client ID for AKS workload"
-  value       = azuread_application.aks_workload.application_id
-}
 
 output "tenant_id" {
   description = "Azure tenant ID"

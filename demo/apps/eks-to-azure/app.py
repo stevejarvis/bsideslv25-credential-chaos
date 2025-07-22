@@ -7,59 +7,94 @@ Authentication flow: IRSA → IAM Role → Cognito → Azure
 
 import os
 import time
+import json
+import base64
 import boto3
 from azure.identity import ClientAssertionCredential
 from azure.mgmt.resource import ResourceManagementClient
 from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
 from botocore.exceptions import ClientError
 
-def get_cognito_jwt():
-    """Get Cognito JWT using IRSA credentials"""
+def decode_jwt_payload(token):
+    """Decode JWT payload for inspection (without signature verification)"""
     try:
-        import jwt
-        from datetime import datetime, timedelta
+        # Split token into parts
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+            
+        # Decode payload (second part)
+        payload = parts[1]
+        # Add padding if needed
+        payload += '=' * (4 - len(payload) % 4)
         
+        # Base64 decode and parse JSON
+        decoded = base64.urlsafe_b64decode(payload)
+        return json.loads(decoded)
+    except Exception as e:
+        print(f"❌ Failed to decode JWT: {e}")
+        return None
+
+def get_oidc_token_from_identity_pool():
+    """Get OIDC token from Cognito Identity Pool using IRSA credentials"""
+    try:
         # Verify IRSA authentication first
         sts_client = boto3.client('sts', region_name='us-west-2')
         caller_identity = sts_client.get_caller_identity()
         
         print(f"✅ Authenticated to AWS via IRSA")
         print(f"🔍 AWS Account: {caller_identity['Account']}")
+        print(f"🔍 Assumed Role: {caller_identity['Arn']}")
         
-        # Get Cognito configuration
-        user_pool_id = os.environ.get('COGNITO_USER_POOL_ID')
-        if not user_pool_id:
-            print("❌ COGNITO_USER_POOL_ID not configured")
+        # Get the Identity Pool ID from environment
+        identity_pool_id = os.environ.get('COGNITO_IDENTITY_POOL_ID')
+        if not identity_pool_id:
+            print("❌ COGNITO_IDENTITY_POOL_ID not configured")
             return None
-            
-        # Create simplified JWT for demo
-        now = datetime.utcnow()
-        payload = {
-            'iss': f'https://cognito-idp.us-west-2.amazonaws.com/{user_pool_id}',
-            'sub': 'system:serviceaccount:demo:workload-identity-sa',
-            'aud': 'api://AzureADTokenExchange',
-            'iat': int(now.timestamp()),
-            'exp': int((now + timedelta(hours=1)).timestamp()),
-            'cognito:username': 'eks-workload'
-        }
         
-        # For demo: unsigned JWT (production would be signed by Cognito)
-        token = jwt.encode(payload, 'demo-secret', algorithm='HS256')
+        identity_client = boto3.client('cognito-identity', region_name='us-west-2')
         
-        print(f"✅ Generated Cognito JWT")
-        return token
+        # This will implicitly use the IRSA-assumed IAM role via botocore session
+        response = identity_client.get_id(
+            IdentityPoolId=identity_pool_id,
+            Logins={
+                'cognito-identity.amazonaws.com': caller_identity['Arn']
+            }
+        )
+        
+        identity_id = response['IdentityId']
+        print(f"✅ Got Cognito Identity ID: {identity_id}")
+        
+        token_response = identity_client.get_open_id_token(
+            IdentityId=identity_id,
+            Logins={
+                'cognito-identity.amazonaws.com': caller_identity['Arn']
+            }
+        )
+        
+        print("✅ Got OIDC token from Identity Pool")
+        return token_response['Token']  # This is a JWT
         
     except Exception as e:
-        print(f"❌ Failed to get Cognito JWT: {e}")
+        print(f"❌ Failed to get OIDC token from Identity Pool: {e}")
         return None
 
 def get_azure_credential():
-    """Get Azure credential using Cognito JWT"""
+    """Get Azure credential using real Cognito Identity token"""
     try:
-        # Get Cognito JWT
-        cognito_jwt = get_cognito_jwt()
-        if not cognito_jwt:
+        # Get OIDC token from Cognito Identity Pool
+        cognito_token = get_oidc_token_from_identity_pool()
+        if not cognito_token:
             return None
+            
+        # Decode and inspect the real token
+        payload = decode_jwt_payload(cognito_token)
+        if payload:
+            print(f"🔍 Cognito Token Claims:")
+            print(f"   Issuer (iss): {payload.get('iss', 'N/A')}")
+            print(f"   Audience (aud): {payload.get('aud', 'N/A')}")
+            print(f"   Subject (sub): {payload.get('sub', 'N/A')}")
+            print(f"   All claims: {json.dumps(payload, indent=2)}")
             
         # Azure configuration
         tenant_id = os.environ.get('AZURE_TENANT_ID')
@@ -73,7 +108,7 @@ def get_azure_credential():
         from azure.identity import ClientAssertionCredential
         
         def get_assertion():
-            return cognito_jwt
+            return cognito_token
             
         credential = ClientAssertionCredential(
             tenant_id=tenant_id,

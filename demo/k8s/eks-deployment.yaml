@@ -40,8 +40,8 @@ spec:
           value: "${AZURE_CLIENT_ID}"
         - name: AZURE_SUBSCRIPTION_ID
           value: "${AZURE_SUBSCRIPTION_ID}"
-        - name: COGNITO_USER_POOL_ID
-          value: "${COGNITO_USER_POOL_ID}"
+        - name: COGNITO_IDENTITY_POOL_ID
+          value: "${COGNITO_IDENTITY_POOL_ID}"
         - name: POD_NAMESPACE
           valueFrom:
             fieldRef:
@@ -59,7 +59,7 @@ spec:
           runAsNonRoot: true
           runAsUser: 1001
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
+          readOnlyRootFilesystem: false
           capabilities:
             drop:
             - ALL

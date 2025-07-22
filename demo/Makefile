@@ -42,6 +42,7 @@ deploy-azure-initial:
 	@cd terraform/azure && terraform init
 	@cd terraform/azure && terraform plan \
 		-var="cognito_issuer_url=https://placeholder.example.com" \
+		-var="cognito_identity_pool_id=placeholder" \
 		-out=tfplan
 	@cd terraform/azure && terraform apply tfplan
 	@echo "$(GREEN)✅ Azure infrastructure (initial) deployed!$(RESET)"
@@ -51,8 +52,7 @@ deploy-aws:
 	@echo "$(BLUE)☁️  Deploying AWS infrastructure...$(RESET)"
 	@cd terraform/aws && terraform init
 	@cd terraform/aws && terraform plan \
-		-var="azure_tenant_id=$$(az account show --query tenantId -o tsv)" \
-		-var="azure_service_principal_id=$$(cd ../azure && terraform output -raw aks_workload_service_principal_id)" \
+		-var="aks_oidc_issuer_url=$$(cd ../azure && terraform output -raw cluster_oidc_issuer_url)" \
 		-out=tfplan
 	@cd terraform/aws && terraform apply tfplan
 	@echo "$(GREEN)✅ AWS infrastructure deployed!$(RESET)"
@@ -61,7 +61,8 @@ deploy-aws:
 deploy-azure-final:
 	@echo "$(BLUE)☁️  Updating Azure with Cognito issuer...$(RESET)"
 	@cd terraform/azure && terraform plan \
-		-var="cognito_issuer_url=$$(cd ../aws && terraform output -raw cognito_issuer_url)" \
+		-var="cognito_issuer_url=$$(cd ../aws && terraform output -raw cognito_identity_issuer_url)" \
+		-var="cognito_identity_pool_id=$$(cd ../aws && terraform output -raw cognito_identity_pool_id)" \
 		-out=tfplan-final
 	@cd terraform/azure && terraform apply tfplan-final
 	@echo "$(GREEN)✅ Azure infrastructure (final) deployed!$(RESET)"
@@ -85,7 +86,7 @@ push:
 	 docker push $$ACR_SERVER/aks-to-aws:latest
 	@echo "$(YELLOW)🔄 Pushing to ECR...$(RESET)"
 	@ECR_URI=$$(cd terraform/aws && terraform output -raw ecr_repository_url) && \
-	 aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $$ECR_URI && \
+	 aws ecr get-login-password --region $(AWS_REGION) --profile bsideslv25 | docker login --username AWS --password-stdin $$ECR_URI && \
 	 docker tag eks-to-azure:latest $$ECR_URI:latest && \
 	 docker push $$ECR_URI:latest
 	@echo "$(GREEN)✅ Images pushed to registries!$(RESET)"
@@ -97,18 +98,16 @@ deploy-apps:
 	@az aks get-credentials --resource-group $$(cd terraform/azure && terraform output -raw resource_group_name) \
 		--name $$(cd terraform/azure && terraform output -raw cluster_name) --overwrite-existing
 	@ACR_SERVER=$$(cd terraform/azure && terraform output -raw acr_login_server) \
-	 AZURE_CLIENT_ID=$$(cd terraform/azure && terraform output -raw aks_workload_client_id) \
-	 AZURE_TENANT_ID=$$(cd terraform/azure && terraform output -raw tenant_id) \
 	 AWS_ROLE_ARN=$$(cd terraform/aws && terraform output -raw aks_workload_role_arn) \
 	 envsubst < k8s/aks-deployment.yaml | kubectl apply -f -
 	@echo "$(YELLOW)📋 Deploying to EKS...$(RESET)"
-	@aws eks update-kubeconfig --region $(AWS_REGION) --name $$(cd terraform/aws && terraform output -raw cluster_name)
+	@aws eks update-kubeconfig --region $(AWS_REGION) --profile bsideslv25 --name $$(cd terraform/aws && terraform output -raw cluster_name)
 	@ECR_URI=$$(cd terraform/aws && terraform output -raw ecr_repository_url) \
 	 EKS_WORKLOAD_ROLE_ARN=$$(cd terraform/aws && terraform output -raw eks_workload_role_arn) \
 	 AZURE_TENANT_ID=$$(cd terraform/azure && terraform output -raw tenant_id) \
 	 AZURE_CLIENT_ID=$$(cd terraform/azure && terraform output -raw eks_workload_service_principal_id) \
 	 AZURE_SUBSCRIPTION_ID=$$(az account show --query id -o tsv) \
-	 COGNITO_USER_POOL_ID=$$(cd terraform/aws && terraform output -raw cognito_user_pool_id) \
+	 COGNITO_IDENTITY_POOL_ID=$$(cd terraform/aws && terraform output -raw cognito_identity_pool_id) \
 	 envsubst < k8s/eks-deployment.yaml | kubectl apply -f -
 	@echo "$(GREEN)✅ Applications deployed!$(RESET)"
 
@@ -122,11 +121,24 @@ verify:
 	@kubectl logs -n demo deployment/aks-to-aws --tail=20
 	@echo ""
 	@echo "$(CYAN)🎯 Testing EKS → Azure authentication:$(RESET)"
-	@aws eks update-kubeconfig --region $(AWS_REGION) --name $$(cd terraform/aws && terraform output -raw cluster_name)
+	@aws eks update-kubeconfig --region $(AWS_REGION) --profile bsideslv25 --name $$(cd terraform/aws && terraform output -raw cluster_name)
 	@kubectl logs -n demo deployment/eks-to-azure --tail=20
 	@echo ""
 	@echo "$(CYAN)🔒 Checking for manually managed secrets:$(RESET)"
 	@kubectl get secrets -A | grep -v "service-account-token\|default-token" || echo "$(GREEN)✅ No manually managed secrets found!$(RESET)"
+
+# Get shell in AKS workload container
+shell-aks:
+	@echo "$(CYAN)🚀 Connecting to AKS workload container...$(RESET)"
+	@az aks get-credentials --resource-group $$(cd terraform/azure && terraform output -raw resource_group_name) \
+		--name $$(cd terraform/azure && terraform output -raw cluster_name) --overwrite-existing --admin
+	@kubectl exec -it -n demo deployment/aks-to-aws -- /bin/sh
+
+# Get shell in EKS workload container  
+shell-eks:
+	@echo "$(CYAN)🚀 Connecting to EKS workload container...$(RESET)"
+	@aws eks update-kubeconfig --region $(AWS_REGION) --profile bsideslv25 --name $$(cd terraform/aws && terraform output -raw cluster_name)
+	@kubectl exec -it -n demo deployment/eks-to-azure -- /bin/sh
 
 # Clean up everything
 destroy:
@@ -138,12 +150,12 @@ destroy:
 		xargs -I {} aws ecr batch-delete-image --repository-name eks-to-azure --image-ids imageTag={} 2>/dev/null || true
 	@echo "$(YELLOW)🗑️  Destroying Azure infrastructure...$(RESET)"
 	@-cd terraform/azure && terraform destroy -auto-approve \
-		-var="cognito_issuer_url=$$(cd ../aws && terraform output -raw cognito_issuer_url 2>/dev/null || echo 'https://placeholder.example.com')" \
+		-var="cognito_issuer_url=$$(cd ../aws && terraform output -raw cognito_identity_issuer_url 2>/dev/null || echo 'https://placeholder.example.com')" \
+		-var="cognito_identity_pool_id=$$(cd ../aws && terraform output -raw cognito_identity_pool_id 2>/dev/null || echo 'placeholder')" \
 		2>/dev/null || echo "$(CYAN)Azure destruction completed (some resources may have been already deleted)$(RESET)"
 	@echo "$(YELLOW)🗑️  Destroying AWS infrastructure...$(RESET)"
 	@-cd terraform/aws && terraform destroy -auto-approve \
-		-var="azure_tenant_id=$$(az account show --query tenantId -o tsv)" \
-		-var="azure_service_principal_id=$$(cd ../azure && terraform output -raw aks_workload_service_principal_id 2>/dev/null || echo 'placeholder')" \
+		-var="aks_oidc_issuer_url=$$(cd ../azure && terraform output -raw cluster_oidc_issuer_url 2>/dev/null || echo 'https://placeholder.example.com')" \
 		2>/dev/null || echo "$(CYAN)AWS destruction completed (some resources may have been already deleted)$(RESET)"
 	@echo "$(GREEN)✅ Demo infrastructure destroyed!$(RESET)"
 
@@ -152,12 +164,14 @@ help:
 	@echo "$(BLUE)BSides Las Vegas 2025 - Credential Chaos Demo$(RESET)"
 	@echo ""
 	@echo "$(YELLOW)Available targets:$(RESET)"
-	@echo "  $(GREEN)deploy$(RESET)  - Deploy complete demo infrastructure"
-	@echo "  $(GREEN)verify$(RESET)  - Verify cross-cloud authentication is working"
-	@echo "  $(GREEN)destroy$(RESET) - Clean up all resources"
-	@echo "  $(GREEN)build$(RESET)   - Build Docker images"
-	@echo "  $(GREEN)push$(RESET)    - Push images to registries"
-	@echo "  $(GREEN)help$(RESET)    - Show this help message"
+	@echo "  $(GREEN)deploy$(RESET)     - Deploy complete demo infrastructure"
+	@echo "  $(GREEN)verify$(RESET)     - Verify cross-cloud authentication is working"
+	@echo "  $(GREEN)shell-aks$(RESET)  - Get shell in AKS workload container"
+	@echo "  $(GREEN)shell-eks$(RESET)  - Get shell in EKS workload container"
+	@echo "  $(GREEN)destroy$(RESET)    - Clean up all resources"
+	@echo "  $(GREEN)build$(RESET)      - Build Docker images"
+	@echo "  $(GREEN)push$(RESET)       - Push images to registries"
+	@echo "  $(GREEN)help$(RESET)       - Show this help message"
 	@echo ""
 	@echo "$(CYAN)Required setup:$(RESET)"
 	@echo "  AWS profile 'bsideslv25' configured in ~/.aws/credentials"

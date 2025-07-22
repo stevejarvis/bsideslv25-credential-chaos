@@ -70,6 +70,36 @@ az monitor activity-log list \
 - ECR: EKS pulls from AWS Elastic Container Registry
 - ACR: AKS pulls from Azure Container Registry
 
+## Cost & Complexity
+
+- **Demo cost**: ~$3-4/day while running (optimized: single-node, no NAT Gateway, t3.small for EKS)
+- **Deploy time**: ~15 minutes
+- **Destroy time**: ~5 minutes
+- **Secrets managed**: **0** 🎉
+
+## ⚠️ Production Considerations
+
+**This demo is optimized for cost and simplicity, not production use.** Key tradeoffs made:
+
+### Security Tradeoffs
+- **Kubernetes nodes in public subnets** - Nodes have public IPs for cost savings (no NAT Gateway)
+  - **Production**: Use private subnets with NAT Gateway/Instance for outbound-only access
+  - **Risk**: Broader attack surface, though mitigated by Security Groups
+  
+### Availability/Resilience Tradeoffs  
+- **Single Kubernetes node per cluster** - Zero redundancy for cost optimization
+  - **Production**: Use 3+ nodes across multiple AZs for high availability
+  - **Risk**: Any node failure = complete cluster downtime
+
+- **Minimal instance sizes** - t3.micro (AWS) and Standard_D2s_v3 (Azure)
+  - **Production**: Right-size based on actual workload requirements
+  - **Risk**: Resource constraints under real load
+
+### Infrastructure Tradeoffs
+- **No monitoring/logging** - Basic setup without observability stack
+  - **Production**: Add CloudWatch, Azure Monitor, Prometheus, etc.
+  - **Risk**: Limited visibility into system health and security events
+
 ## Troubleshooting
 
 ### Common Issues
@@ -94,8 +124,11 @@ Ideas for making this a good demo. Can't actually deploy it all from scratch, it
 
 Alternatively can't just have it all up and say "look it works". So thinking it'll be mostly up but borken at a few key points, maybe:
 
-1. IRSA and/or EWID misconfigured, didn't get an OIDC token from k8s 
-2. AWS target role not configured to trust Entra, and/or Entra SP not configured to trust Cognito
-3. Actual application
+1. IRSA misconfigured, didn't get an OIDC token from k8s 
+2. AWS target role not configured to trust AKS, and/or Entra SP not configured to trust Cognito
+3. Actual application bug
 
 I like that breakdown because they're the keys and it's basically one mistake at 3 levels, the cloud infra, the k8s, and the app itself. Great touch points.
+
+### Architectural Differences
+Tradeoffs of having AKS issue token directly versus EKS using Cognito.

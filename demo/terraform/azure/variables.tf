@@ -23,7 +23,13 @@ variable "registry_name" {
 }
 
 variable "cognito_issuer_url" {
-  description = "Cognito user pool issuer URL for JWT"
+  description = "Cognito Identity Pool issuer URL for OIDC JWT"
+  type        = string
+  default     = "placeholder"
+}
+
+variable "cognito_identity_pool_id" {
+  description = "Cognito Identity Pool ID (used as audience in JWT)"
   type        = string
   default     = "placeholder"
 }

@@ -50,9 +50,8 @@ resource "azurerm_kubernetes_cluster" "demo" {
     type = "SystemAssigned"
   }
 
-  # Enable Workload Identity
-  workload_identity_enabled = true
-  oidc_issuer_enabled       = true
+  # Enable OIDC issuer for cross-cloud authentication
+  oidc_issuer_enabled = true
 
   tags = var.tags
 }
@@ -77,7 +76,7 @@ resource "azurerm_role_assignment" "aks_acr_pull" {
 
 # Service Principal for EKS workload
 resource "azuread_application" "eks_workload" {
-  display_name = "EKSWorkloadApp"
+  display_name = "TargetEKSWorkloadApp"
   owners       = [data.azuread_client_config.current.object_id]
 }
 
@@ -91,7 +90,7 @@ resource "azuread_application_federated_identity_credential" "eks_workload" {
   application_id = azuread_application.eks_workload.id
   display_name   = "EKSWorkloadCredential"
   description    = "Federated identity for EKS workload using Cognito JWT"
-  audiences      = ["api://AzureADTokenExchange"]
+  audiences      = [var.cognito_identity_pool_id]
   issuer         = var.cognito_issuer_url
   subject        = "system:serviceaccount:demo:workload-identity-sa"
 }
@@ -103,31 +102,3 @@ resource "azurerm_role_assignment" "eks_workload_reader" {
   principal_id         = azuread_service_principal.eks_workload.object_id
 }
 
-# User Assigned Identity for AKS workload
-resource "azurerm_user_assigned_identity" "aks_workload" {
-  name                = "aks-workload-identity"
-  resource_group_name = azurerm_resource_group.demo.name
-  location            = azurerm_resource_group.demo.location
-  tags                = var.tags
-}
-
-# Federated Identity Credential for AKS workload
-resource "azuread_application_federated_identity_credential" "aks_workload" {
-  application_id = azuread_application.aks_workload.id
-  display_name   = "AKSWorkloadCredential"
-  description    = "Federated identity for AKS workload"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = azurerm_kubernetes_cluster.demo.oidc_issuer_url
-  subject        = "system:serviceaccount:demo:workload-identity-sa"
-}
-
-# Application for AKS workload
-resource "azuread_application" "aks_workload" {
-  display_name = "AKSWorkloadApp"
-  owners       = [data.azuread_client_config.current.object_id]
-}
-
-resource "azuread_service_principal" "aks_workload" {
-  client_id = azuread_application.aks_workload.client_id
-  owners    = [data.azuread_client_config.current.object_id]
-}

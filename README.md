@@ -67,12 +67,6 @@ make destroy
 3. **Cross-cloud auth is possible** - Federated identity works between AWS and Azure
 4. **Infrastructure as Code wins** - Terraform makes complex auth scenarios reproducible
 
-## Cost & Complexity
-
-- **Demo cost**: ~$2-3/day while running (fully optimized: single-node, no NAT Gateway)
-- **Deploy time**: ~15 minutes
-- **Destroy time**: ~5 minutes
-- **Secrets managed**: **0** 🎉
 
 ## Talk Schedule
 

@@ -10,13 +10,8 @@ variable "cluster_name" {
   default     = "credential-chaos-eks"
 }
 
-variable "azure_tenant_id" {
-  description = "Azure tenant ID for federated identity"
-  type        = string
-}
-
-variable "azure_service_principal_id" {
-  description = "Azure service principal ID for federated identity"
+variable "aks_oidc_issuer_url" {
+  description = "AKS OIDC issuer URL for federated identity"
   type        = string
 }
 

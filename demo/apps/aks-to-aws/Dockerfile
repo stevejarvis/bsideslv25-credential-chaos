@@ -6,11 +6,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install vim for debugging
+RUN apt-get update && apt-get install -y vim && rm -rf /var/lib/apt/lists/*
+
 # Copy application
 COPY app.py .
 
-# Run as non-root user
+# Run as non-root user but give write permissions for debugging
 RUN useradd -m -u 1001 appuser
+RUN chown -R appuser:appuser /app
 USER appuser
 
 # Health check

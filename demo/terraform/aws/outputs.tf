@@ -33,12 +33,7 @@ output "cognito_identity_pool_id" {
   value       = aws_cognito_identity_pool.cross_cloud.id
 }
 
-output "cognito_user_pool_id" {
-  description = "Cognito user pool ID"
-  value       = aws_cognito_user_pool.cross_cloud.id
-}
-
-output "cognito_issuer_url" {
-  description = "Cognito user pool issuer URL for JWT"
-  value       = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.cross_cloud.id}"
+output "cognito_identity_issuer_url" {
+  description = "Cognito Identity Pool issuer URL for JWT (for Azure federated identity)"
+  value       = "https://cognito-identity.${var.aws_region}.amazonaws.com"
 }

@@ -8,30 +8,61 @@ import os
 import sys
 import time
 import json
+import base64
 import boto3
-from azure.identity import DefaultAzureCredential
 from botocore.exceptions import ClientError, NoCredentialsError
 
-def get_entra_jwt():
-    """Get Entra ID JWT using Workload Identity"""
+def decode_jwt_payload(token):
+    """Decode JWT payload for inspection (without signature verification)"""
     try:
-        credential = DefaultAzureCredential()
+        # Split token into parts
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+            
+        # Decode payload (second part)
+        payload = parts[1]
+        # Add padding if needed
+        payload += '=' * (4 - len(payload) % 4)
         
-        # Get Entra ID token with proper AWS scope (/.default suffix required for client credentials flow)
-        token = credential.get_token("api://AzureADTokenExchange/.default")
+        # Base64 decode and parse JSON
+        decoded = base64.urlsafe_b64decode(payload)
+        return json.loads(decoded)
+    except Exception as e:
+        print(f"❌ Failed to decode JWT: {e}")
+        return None
+
+def get_kubernetes_jwt():
+    """Get Kubernetes service account JWT from projected volume"""
+    try:
+        # Read the projected service account token for AWS STS
+        token_path = '/var/run/secrets/kubernetes.io/serviceaccount/token'
+        with open(token_path, 'r') as f:
+            k8s_jwt = f.read().strip()
         
-        print(f"✅ Got Entra ID JWT via Workload Identity")
-        return token.token
+        print(f"✅ Got Kubernetes service account JWT")
+        print(f"Token length: {len(k8s_jwt)}")
+        
+        # Decode and inspect token claims
+        payload = decode_jwt_payload(k8s_jwt)
+        if payload:
+            print(f"🔍 JWT Claims:")
+            print(f"   Issuer (iss): {payload.get('iss', 'N/A')}")
+            print(f"   Audience (aud): {payload.get('aud', 'N/A')}")
+            print(f"   Subject (sub): {payload.get('sub', 'N/A')}")
+            print(f"   All claims: {json.dumps(payload, indent=2)}")
+        
+        return k8s_jwt
         
     except Exception as e:
-        print(f"❌ Failed to get Entra JWT: {e}")
+        print(f"❌ Failed to get Kubernetes JWT: {e}")
         return None
 
 def assume_aws_role():
-    """Assume AWS IAM role using Entra ID JWT"""
+    """Assume AWS IAM role using Kubernetes service account JWT"""
     try:
-        entra_jwt = get_entra_jwt()
-        if not entra_jwt:
+        k8s_jwt = get_kubernetes_jwt()
+        if not k8s_jwt:
             return None
             
         sts_client = boto3.client('sts', region_name='us-west-2')
@@ -44,10 +75,10 @@ def assume_aws_role():
         response = sts_client.assume_role_with_web_identity(
             RoleArn=role_arn,
             RoleSessionName='AKSWorkloadSession',
-            WebIdentityToken=entra_jwt
+            WebIdentityToken=k8s_jwt
         )
         
-        print(f"✅ Assumed AWS role via Entra ID JWT")
+        print(f"✅ Assumed AWS role via Kubernetes service account JWT")
         return response['Credentials']
         
     except ClientError as e:
@@ -87,7 +118,7 @@ def call_aws_sts():
 def main():
     """Main application loop"""
     print("🚀 AKS to AWS Authentication Demo")
-    print("🔗 Flow: AKS Workload ID → Entra ID JWT → AWS IAM Role")
+    print("🔗 Flow: AKS OIDC → Kubernetes service account JWT → AWS IAM Role")
     print("=" * 50)
     
     # Check environment

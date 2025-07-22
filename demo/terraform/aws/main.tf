@@ -38,7 +38,7 @@ module "eks" {
       max_size     = 1
       desired_size = 1
       
-      instance_types = ["t3.micro"]
+      instance_types = ["t3.small"]
       capacity_type  = "ON_DEMAND"
       
       # Ensure node groups are destroyed before cluster
@@ -68,12 +68,15 @@ module "vpc" {
   name = "${var.cluster_name}-vpc"
   cidr = "10.0.0.0/16"
 
-  azs             = [data.aws_availability_zones.available.names[0]]
-  private_subnets = ["10.0.1.0/24"]
-  public_subnets  = ["10.0.101.0/24"]
+  azs             = [data.aws_availability_zones.available.names[0], data.aws_availability_zones.available.names[1]]
+  private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
+  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
 
   enable_nat_gateway = false
   enable_vpn_gateway = false
+  
+  # Enable auto-assignment of public IPs for public subnets
+  map_public_ip_on_launch = true
   
   enable_dns_hostnames = true
   enable_dns_support   = true
@@ -98,17 +101,16 @@ resource "aws_ecr_repository" "eks_to_azure" {
   tags = var.tags
 }
 
-# OIDC Provider for Entra ID
-resource "aws_iam_openid_connect_provider" "entra_id" {
-  url = "https://sts.windows.net/${var.azure_tenant_id}/"
+# OIDC Provider for AKS
+resource "aws_iam_openid_connect_provider" "aks" {
+  url = var.aks_oidc_issuer_url
 
   client_id_list = [
-    var.azure_service_principal_id
+    "sts.amazonaws.com"
   ]
 
-  thumbprint_list = [
-    "626d44e704d1ceabe3bf0d53397464ac8080142c"  # Microsoft Entra ID thumbprint
-  ]
+  # AKS OIDC provider thumbprint (will be computed from the issuer URL)
+  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"]  # Common for AKS
 
   tags = var.tags
 }
@@ -123,13 +125,13 @@ resource "aws_iam_role" "aks_workload_role" {
       {
         Effect = "Allow"
         Principal = {
-          Federated = aws_iam_openid_connect_provider.entra_id.arn
+          Federated = aws_iam_openid_connect_provider.aks.arn
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
-            "sts.windows.net/${var.azure_tenant_id}/:sub" = var.azure_service_principal_id
-            "sts.windows.net/${var.azure_tenant_id}/:aud" = "https://sts.windows.net/"
+            "${replace(var.aks_oidc_issuer_url, "https://", "")}:sub" = "system:serviceaccount:demo:workload-identity-sa"
+            "${replace(var.aks_oidc_issuer_url, "https://", "")}:aud" = "sts.amazonaws.com"
           }
         }
       }
@@ -159,33 +161,11 @@ resource "aws_iam_role_policy" "aks_workload_policy" {
   })
 }
 
-# Cognito User Pool for JWT issuing
-resource "aws_cognito_user_pool" "cross_cloud" {
-  name = "CrossCloudAuth"
-  tags = var.tags
-}
 
-# Cognito User Pool Client
-resource "aws_cognito_user_pool_client" "cross_cloud" {
-  name         = "CrossCloudAuthClient"
-  user_pool_id = aws_cognito_user_pool.cross_cloud.id
-  generate_secret = false
-  
-  explicit_auth_flows = [
-    "ALLOW_CUSTOM_AUTH",
-    "ALLOW_USER_SRP_AUTH"
-  ]
-}
-
-# Cognito Identity Pool for cross-cloud authentication
+# Cognito Identity Pool for OIDC token issuing to Azure
 resource "aws_cognito_identity_pool" "cross_cloud" {
   identity_pool_name = "CrossCloudIdentityPool"
   allow_unauthenticated_identities = false
-  
-  cognito_identity_providers {
-    client_id     = aws_cognito_user_pool_client.cross_cloud.id
-    provider_name = aws_cognito_user_pool.cross_cloud.endpoint
-  }
   
   tags = var.tags
 }
@@ -229,7 +209,7 @@ resource "aws_iam_role_policy" "eks_workload_policy" {
         Effect = "Allow"
         Action = [
           "cognito-identity:GetId",
-          "cognito-identity:GetCredentialsForIdentity"
+          "cognito-identity:GetOpenIdToken"
         ]
         Resource = aws_cognito_identity_pool.cross_cloud.arn
       }
