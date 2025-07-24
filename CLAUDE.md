@@ -10,17 +10,17 @@ The demo code is in demo/. Here's what the demo should do:
    - EKS cluster with IRSA enabled
    - ECR registry for container images
    - IAM Role for AKS workload to assume
-   - Cognito Identity Pool for OIDC federation
+   - Cognito Identity Pool for OIDC federation (EKS → Azure flow)
 
 2. **Azure Components**:
-   - AKS cluster with Workload ID enabled
+   - AKS cluster with OIDC issuer enabled (no Workload Identity needed)
    - ACR registry for container images
    - Entra Service Principal for EKS workload to assume
-   - Federated identity credentials for AWS trust
+   - Federated identity credentials for Cognito trust
 
 3. **Cross-Cloud Trust**:
-   - AWS EKS uses IRSA to assume IAM Role → trusted by Entra Service Principal
-   - Azure AKS uses Workload ID to assume Service Principal → trusted by AWS IAM Role
+   - **AKS → AWS**: AKS OIDC issuer → AWS OIDC Provider → IAM Role (direct)
+   - **EKS → Azure**: IRSA → Cognito Identity Pool → OIDC JWT → Entra Service Principal (stable issuer)
 
 ## Applications (Docker)
 1. **AKS Python App** (`demo/apps/aks-to-aws/`):
@@ -29,7 +29,7 @@ The demo code is in demo/. Here's what the demo should do:
    - Containerized and pushed to ACR
 
 2. **EKS Python App** (`demo/apps/eks-to-azure/`):
-   - Uses Azure SDK to call Azure Resource Manager
+   - Uses IRSA → Cognito Identity Pool (`get_id()` + `get_open_id_token()`) → Azure ARM
    - Logs Azure subscription ID and service principal
    - Containerized and pushed to ECR
 
@@ -74,5 +74,24 @@ Values to follow:
 * **All deployment steps:** Must be reproducible through `make` targets
 * **No manual kubectl commands:** Everything through automated Makefile targets
 
-# Next Steps
-1. there are bugs in the actual apps, they cannot authenticate to the other clusters. unsure if this is an issue with credentials or the apps themselves, yet. 
+## Key Learnings from Development
+
+### Critical Discovery: Azure Workload Identity Limitations
+**Azure Entra ID Workload Identity cannot issue OIDC JWTs** that external services can consume. It only issues access tokens for Azure resources. This drove the asymmetric architecture:
+- ❌ **Doesn't Work**: Azure Workload ID → OIDC JWT → AWS STS  
+- ✅ **Works**: Azure Workload ID → Direct Kubernetes JWT → AWS STS
+- ✅ **Works**: AWS IRSA → Cognito Identity Pool → OIDC JWT → Azure Entra
+
+### Cognito Identity Pool Implementation Details
+- **Provider Name**: Remove `https://` prefix from EKS OIDC issuer URL in Logins map
+- **Configuration**: Use `openid_connect_provider_arns` not `supported_login_providers`
+- **Authentication**: Must use `allow_unauthenticated_identities = false` with proper role attachments
+- **API Calls**: `get_id()` with IRSA token → `get_open_id_token()` for Azure consumption
+
+### Architecture Trade-offs Table
+| Flow | AKS → AWS (Simple) | EKS → Azure (Stable) |
+|------|-------------------|---------------------|
+| **Complexity** | ✅ Minimal (direct K8s OIDC) | ⚠️ More complex (Cognito) |
+| **Stability** | ⚠️ Issuer changes with cluster | ✅ Stable Cognito issuer |
+| **Cost** | ✅ Lower (fewer services) | ⚠️ Higher (Cognito costs) |
+| **Enterprise** | ⚠️ Tight cluster coupling | ✅ Decoupled from clusters | 

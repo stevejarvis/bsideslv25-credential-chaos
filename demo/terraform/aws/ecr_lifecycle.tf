@@ -6,12 +6,12 @@ resource "aws_ecr_lifecycle_policy" "eks_to_azure" {
     rules = [
       {
         rulePriority = 1
-        description  = "Keep last 10 images"
+        description  = "Keep last 2 images"
         selection = {
           tagStatus     = "tagged"
           tagPrefixList = ["v"]
           countType     = "imageCountMoreThan"
-          countNumber   = 10
+          countNumber   = 2
         }
         action = {
           type = "expire"

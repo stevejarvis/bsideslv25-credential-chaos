@@ -90,7 +90,25 @@ The asymmetric flows highlight different approaches to cross-cloud authenticatio
 - ⚠️ Additional AWS service (Cognito) adds cost
 - ⚠️ More moving parts to maintain
 
-### Key Insight
+### Key Insights
+
+#### Why Identity Pool (Not User Pool)?
+**Critical Discovery**: Azure Entra ID Workload Identity **cannot issue OIDC JWTs** that external services can consume. It only issues access tokens for Azure resources.
+
+- ❌ **Doesn't Work**: Azure Workload ID → OIDC JWT → AWS STS  
+- ✅ **Works**: Azure Workload ID → Direct Kubernetes JWT → AWS STS
+- ✅ **Works**: AWS IRSA → Cognito Identity Pool → OIDC JWT → Azure Entra
+
+#### Architectural Trade-offs
+
+| Flow | AKS → AWS (Simple) | EKS → Azure (Stable) |
+|------|-------------------|---------------------|
+| **Complexity** | ✅ Minimal (direct K8s OIDC) | ⚠️ More complex (Cognito) |
+| **Stability** | ⚠️ Issuer changes with cluster | ✅ Stable Cognito issuer |
+| **Cost** | ✅ Lower (fewer services) | ⚠️ Higher (Cognito costs) |
+| **Enterprise** | ⚠️ Tight cluster coupling | ✅ Decoupled from clusters |
+
+
 Both approaches are valid! The choice depends on your priorities:
 - **Simplicity** → AKS → AWS approach  
 - **Stability** → EKS → Azure approach

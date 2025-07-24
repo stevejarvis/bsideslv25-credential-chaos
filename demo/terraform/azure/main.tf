@@ -92,8 +92,9 @@ resource "azuread_application_federated_identity_credential" "eks_workload" {
   description    = "Federated identity for EKS workload using Cognito JWT"
   audiences      = [var.cognito_identity_pool_id]
   issuer         = "https://cognito-identity.amazonaws.com"
-  # This is based on the session name, not really predictable, Entra could use 
-  # subject pattern matching. NOTE may change if not using pattern matching.
+  # NOTE This is the Identity ID created dynamically by Cognito. Entra could use 
+  # subject pattern matching, which is in preview in the Console but not available
+  # in the Terraform provider yet. 
   subject        = "us-west-2:2c77d3eb-0314-cced-e1dd-78c975110436"
 }
 

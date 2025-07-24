@@ -27,22 +27,15 @@ See a live demonstration of cross-cloud authentication - AWS EKS and Azure AKS c
 
 ## Demo Architecture
 
-The demo proves cross-cloud authentication without secrets:
+The demo proves **bidirectional cross-cloud authentication** without secrets using asymmetric approaches:
 
-```
-┌─────────────────┐    OIDC Federation    ┌─────────────────┐
-│   Azure AKS     │◄──────────────────────┤     AWS EKS     │
-│                 │                       │                 │
-│ Workload ID ────┼──► Assumes AWS Role   │ IRSA ───────────┼──► Assumes Azure SP
-│ (No Secrets)    │                       │ (No Secrets)    │
-└─────────────────┘                       └─────────────────┘
-```
+For details, see the [README.md in demo/](./demo/README.md).
 
 **Key Technologies:**
-- **AWS**: EKS + IRSA (IAM Roles for Service Accounts)
-- **Azure**: AKS + Workload Identity 
-- **Federation**: OIDC trust relationships
-- **Infrastructure**: 100% Terraform, ephemeral for demos
+- **AWS**: EKS + IRSA + Cognito Identity Pool
+- **Azure**: AKS + OIDC Issuer (no Workload Identity)
+- **Federation**: Asymmetric OIDC trust relationships
+- **Infrastructure**: 100% Terraform, fully defined in code
 
 ## Quick Start
 
@@ -62,11 +55,10 @@ make destroy
 
 ## Key Takeaways
 
-1. **Design systems that don't need secrets** - Use OIDC, PKI, and managed identities
+1. **Design systems that don't need risky secrets** - Use OIDC, PKI, and managed identities
 2. **Eliminate manual secret management** - Let cloud providers handle authentication
 3. **Cross-cloud auth is possible** - Federated identity works between AWS and Azure
-4. **Infrastructure as Code wins** - Terraform makes complex auth scenarios reproducible
-
+4. **Infrastructure as code wins** - Terraform makes complex auth scenarios reproducible, reliable
 
 ## Talk Schedule
 

@@ -18,17 +18,14 @@ from botocore.exceptions import ClientError
 def decode_jwt_payload(token):
     """Decode JWT payload for inspection (without signature verification)"""
     try:
-        # Split token into parts
         parts = token.split('.')
         if len(parts) != 3:
             return None
             
-        # Decode payload (second part)
         payload = parts[1]
         # Add padding if needed
         payload += '=' * (4 - len(payload) % 4)
         
-        # Base64 decode and parse JSON
         decoded = base64.urlsafe_b64decode(payload)
         return json.loads(decoded)
     except Exception as e:
@@ -91,7 +88,7 @@ def get_oidc_token_from_identity_pool():
         return None
 
 def get_azure_credential():
-    """Get Azure credential using real Cognito Identity token"""
+    """Get Azure credential using Cognito Identity token"""
     try:
         # Get OIDC token from Cognito Identity Pool
         cognito_token = get_oidc_token_from_identity_pool()
@@ -195,7 +192,7 @@ def main():
             print(f"❌ Success rate: {success_count}/{total_count} ({success_count/total_count*100:.1f}%)")
         
         print("-" * 50)
-        time.sleep(30)  # Wait 30 seconds between attempts
+        time.sleep(20)  
 
 if __name__ == "__main__":
     main()

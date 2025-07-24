@@ -15,17 +15,14 @@ from botocore.exceptions import ClientError, NoCredentialsError
 def decode_jwt_payload(token):
     """Decode JWT payload for inspection (without signature verification)"""
     try:
-        # Split token into parts
         parts = token.split('.')
         if len(parts) != 3:
             return None
             
-        # Decode payload (second part)
         payload = parts[1]
         # Add padding if needed
         payload += '=' * (4 - len(payload) % 4)
         
-        # Base64 decode and parse JSON
         decoded = base64.urlsafe_b64decode(payload)
         return json.loads(decoded)
     except Exception as e:
@@ -87,7 +84,6 @@ def assume_aws_role():
 def call_aws_sts():
     """Call AWS STS get-caller-identity to prove authentication"""
     try:
-        # Assume AWS role
         credentials = assume_aws_role()
         if not credentials:
             return False
@@ -101,7 +97,6 @@ def call_aws_sts():
             aws_session_token=credentials['SessionToken']
         )
         
-        # Get caller identity
         response = sts_client.get_caller_identity()
         
         print("🎉 SUCCESS! Cross-cloud authentication working!")
@@ -120,7 +115,6 @@ def main():
     print("🔗 Flow: AKS OIDC → Kubernetes service account JWT → AWS IAM Role")
     print("=" * 50)
     
-    # Check environment
     pod_name = os.environ.get('HOSTNAME', 'unknown')
     namespace = os.environ.get('POD_NAMESPACE', 'unknown')
     
@@ -128,7 +122,6 @@ def main():
     print(f"🌐 Namespace: {namespace}")
     print()
     
-    # Continuous authentication test
     success_count = 0
     total_count = 0
     
@@ -143,7 +136,7 @@ def main():
             print(f"❌ Success rate: {success_count}/{total_count} ({success_count/total_count*100:.1f}%)")
         
         print("-" * 50)
-        time.sleep(30)  # Wait 30 seconds between attempts
+        time.sleep(20)  
 
 if __name__ == "__main__":
     main()

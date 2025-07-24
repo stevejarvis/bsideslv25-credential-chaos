@@ -1,8 +1,8 @@
 # BSides Las Vegas 2025 Demo: Cross-Cloud Authentication
 
-This demo proves cross-cloud authentication without manually managed secrets using AWS IRSA and Azure Workload ID.
+This demo proves **bidirectional cross-cloud authentication without manually managed secrets** using modern identity federation patterns.
 
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
 # Deploy everything
@@ -15,120 +15,138 @@ make verify
 make destroy
 ```
 
-## Verification Steps
+## 🏗️ Architecture Overview
 
-### 1. Live Application Output
-Watch the applications successfully authenticate across clouds:
+This demo implements **asymmetric authentication flows** that showcase different valid approaches to the same problem:
 
-```bash
-# AKS pod calling AWS STS
-kubectl logs -n demo deployment/aks-to-aws -f
+```mermaid
+graph TB
+    subgraph "Azure AKS Cluster"
+        AKS[AKS Pod]
+        AKS_SA[Service Account]
+        AKS_JWT[Kubernetes JWT]
+    end
+    
+    subgraph "AWS Infrastructure"
+        AWS_OIDC[AWS OIDC Provider]
+        AWS_ROLE[IAM Role]
+        AWS_STS[AWS STS]
+    end
+    
+    subgraph "AWS EKS Cluster"
+        EKS[EKS Pod]
+        EKS_SA[Service Account]
+        EKS_JWT[IRSA JWT]
+    end
+    
+    subgraph "AWS Cognito"
+        IDENTITY_POOL[Identity Pool]
+        COGNITO_JWT[Cognito OIDC JWT]
+    end
+    
+    subgraph "Azure Entra ID"
+        ENTRA_SP[Service Principal]
+        AZURE_ARM[Azure ARM API]
+    end
 
-# EKS pod calling Azure APIs  
-kubectl logs -n demo deployment/eks-to-azure -f
+    %% AKS to AWS Flow (Simple & Direct)
+    AKS --> AKS_SA
+    AKS_SA --> AKS_JWT
+    AKS_JWT --> AWS_OIDC
+    AWS_OIDC --> AWS_ROLE
+    AWS_ROLE --> AWS_STS
+    
+    %% EKS to Azure Flow (Stable Issuer via Cognito)
+    EKS --> EKS_SA
+    EKS_SA --> EKS_JWT
+    EKS_JWT --> IDENTITY_POOL
+    IDENTITY_POOL --> COGNITO_JWT
+    COGNITO_JWT --> ENTRA_SP
+    ENTRA_SP --> AZURE_ARM
+
+    %% Styling
+    classDef aksFlow fill:#326ce5,stroke:#fff,color:#fff
+    classDef eksFlow fill:#ff9900,stroke:#fff,color:#fff
+    classDef azure fill:#0078d4,stroke:#fff,color:#fff
+    classDef aws fill:#ff9900,stroke:#fff,color:#fff
+    
+    class AKS,AKS_SA,AKS_JWT aksFlow
+    class EKS,EKS_SA,EKS_JWT eksFlow
+    class AWS_OIDC,AWS_ROLE,AWS_STS,IDENTITY_POOL,COGNITO_JWT aws
+    class ENTRA_SP,AZURE_ARM azure
 ```
 
-**Expected Output:**
-- AKS app logs AWS account ID and assumed role ARN
-- EKS app logs Azure subscription ID and service principal info
+### Detailed Authentication Flows
 
-### 2. Zero Manually Managed Secrets
-Verify no static credentials exist in the clusters:
-
-```bash
-# Should show ONLY service account tokens (not customer secrets)
-kubectl get secrets -A | grep -v "service-account-token\|default-token"
+#### AKS → AWS (Simple, Kubernetes-Native)
+```mermaid
+sequenceDiagram
+    participant AKS as AKS Pod
+    participant K8s as Kubernetes API
+    participant AWS as AWS OIDC Provider
+    participant STS as AWS STS
+    
+    AKS->>K8s: Request service account token
+    Note over K8s: audience: sts.amazonaws.com
+    K8s->>K8s: Validate pod service account
+    K8s->>AKS: Return Kubernetes JWT
+    AKS->>AWS: AssumeRoleWithWebIdentity
+    AWS->>AWS: Validate AKS OIDC issuer
+    AWS->>STS: Issue temporary credentials
+    STS->>AKS: Return AWS credentials
+    AKS->>STS: Call get-caller-identity
 ```
 
-### 3. AWS CloudTrail Evidence
-Check AWS CloudTrail for cross-cloud assume role events:
-
-```bash
-# Look for AssumeRoleWithWebIdentity from Azure AKS workload
-aws logs filter-log-events \
-  --log-group-name CloudTrail/CrossCloudAuth \
-  --filter-pattern "{ $.eventName = AssumeRoleWithWebIdentity }"
+#### EKS → Azure (Enterprise-Stable Issuer)
+```mermaid
+sequenceDiagram
+    participant EKS as EKS Pod
+    participant IRSA as IRSA
+    participant Cognito as Cognito Identity Pool
+    participant GetId as get_id()
+    participant GetToken as get_open_id_token()
+    participant Entra as Entra ID
+    participant ARM as Azure ARM
+    
+    EKS->>IRSA: Request service account token
+    IRSA->>IRSA: Validate pod identity
+    IRSA->>EKS: Return IRSA JWT
+    EKS->>Cognito: Call get_id() with IRSA token
+    Cognito->>GetId: Authenticate with EKS OIDC provider
+    GetId->>EKS: Return Cognito Identity ID
+    EKS->>Cognito: Call get_open_id_token()
+    Cognito->>GetToken: Generate stable OIDC JWT
+    GetToken->>EKS: Return Cognito JWT
+    EKS->>Entra: Request Azure access token
+    Entra->>Entra: Validate Cognito federated identity
+    Entra->>EKS: Return Azure access token
+    EKS->>ARM: Call Azure Resource Manager
 ```
 
-### 4. Azure Activity Log Evidence
-Check Azure Activity Log for EKS workload authentication:
+## 💰 Cost & Complexity
 
-```bash
-# Look for token requests from AWS EKS workload
-az monitor activity-log list \
-  --resource-group demo-rg \
-  --caller eks-workload-identity
-```
-
-## Architecture Validation
-
-### Cross-Cloud Trust Chain
-1. **AKS → AWS**: Workload ID → Federated Identity → IAM Role
-2. **EKS → Azure**: IRSA → Cognito OIDC → Service Principal
-
-### Registry Access
-- ECR: EKS pulls from AWS Elastic Container Registry
-- ACR: AKS pulls from Azure Container Registry
-
-## Cost & Complexity
-
-- **Demo cost**: ~$3-4/day while running (optimized: single-node, no NAT Gateway, t3.small for EKS)
+- **Demo cost**: ~$3-4/day while running 
 - **Deploy time**: ~15 minutes
-- **Destroy time**: ~5 minutes
+- **Destroy time**: ~5 minutes  
 - **Secrets managed**: **0** 🎉
+- **Code changes**: 899 lines added, 667 lines removed over development
 
-## ⚠️ Production Considerations
+## 🚨 Production Considerations
 
-**This demo is optimized for cost and simplicity, not production use.** Key tradeoffs made:
+**This demo prioritizes cost and simplicity over production readiness:**
 
-### Security Tradeoffs
-- **Kubernetes nodes in public subnets** - Nodes have public IPs for cost savings (no NAT Gateway)
-  - **Production**: Use private subnets with NAT Gateway/Instance for outbound-only access
-  - **Risk**: Broader attack surface, though mitigated by Security Groups
-  
-### Availability/Resilience Tradeoffs  
-- **Single Kubernetes node per cluster** - Zero redundancy for cost optimization
-  - **Production**: Use 3+ nodes across multiple AZs for high availability
-  - **Risk**: Any node failure = complete cluster downtime
+### Security Trade-offs
+- **Public subnets** (no NAT Gateway) → Use private subnets in production
+- **Single nodes** → Use 3+ nodes across AZs in production  
+- **Minimal monitoring** → Add full observability stack in production
 
-- **Minimal instance sizes** - t3.micro (AWS) and Standard_D2s_v3 (Azure)
-  - **Production**: Right-size based on actual workload requirements
-  - **Risk**: Resource constraints under real load
+## 🎯 Demo Strategy
 
-### Infrastructure Tradeoffs
-- **No monitoring/logging** - Basic setup without observability stack
-  - **Production**: Add CloudWatch, Azure Monitor, Prometheus, etc.
-  - **Risk**: Limited visibility into system health and security events
+Since full deployment takes 20+ minutes (too slow for live demo), the presentation will show pre-deployed infrastructure with intentional failures at key points:
 
-## Troubleshooting
+1. **Kubernetes Level**: IRSA (and/or AKS token projection) misconfigured, no OIDC token from service account
+2. **Cloud Infrastructure**: IAM roles not configured to trust OIDC providers  
+3. **Application Level**: Authentication logic bugs in the applications
 
-### Common Issues
-- **IRSA not working**: Check OIDC provider configuration
-- **Workload ID failing**: Verify federated identity credentials
-- **Registry access denied**: Ensure proper IAM/RBAC permissions
+This breakdown demonstrates failures at infrastructure, Kubernetes, and application layers, a good spread. Can make some mermaid diagrams here to illustrate the break points maybe. Or just have one to point at to stay oriented.
 
-### Debug Commands
-```bash
-# Check service account annotations
-kubectl describe sa workload-identity-sa -n demo
-
-# Verify IRSA configuration
-kubectl describe pod -n demo -l app=eks-to-azure
-
-# Check Azure workload identity
-kubectl describe pod -n demo -l app=aks-to-aws
-```
-
-## Demo Notes
-Ideas for making this a good demo. Can't actually deploy it all from scratch, it's too slow. EKS/AKS take 20 minutes to be ready. Plus that's just watching TF say "still waiting".
-
-Alternatively can't just have it all up and say "look it works". So thinking it'll be mostly up but borken at a few key points, maybe:
-
-1. IRSA misconfigured, didn't get an OIDC token from k8s 
-2. AWS target role not configured to trust AKS, and/or Entra SP not configured to trust Cognito
-3. Actual application bug
-
-I like that breakdown because they're the keys and it's basically one mistake at 3 levels, the cloud infra, the k8s, and the app itself. Great touch points.
-
-### Architectural Differences
-Tradeoffs of having AKS issue token directly versus EKS using Cognito.

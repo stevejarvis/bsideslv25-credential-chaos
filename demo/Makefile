@@ -128,20 +128,28 @@ verify:
 	@echo "$(CYAN)🔒 Checking for manually managed secrets:$(RESET)"
 	@kubectl get secrets -A | grep -v "service-account-token\|default-token" || echo "$(GREEN)✅ No manually managed secrets found!$(RESET)"
 
-# Get shell in AKS workload container
+logs-aks:
+	@echo "$(CYAN)🚀 Watching logs for AKS workload container...$(RESET)"
+	@az aks get-credentials --resource-group $$(cd terraform/azure && terraform output -raw resource_group_name) \
+		--name $$(cd terraform/azure && terraform output -raw cluster_name) --overwrite-existing --admin
+	@kubectl logs -n demo deployment/aks-to-aws --tail=20 --follow
+
+logs-eks:
+	@echo "$(CYAN)🚀 Watching logs for EKS workload container...$(RESET)"
+	@aws eks update-kubeconfig --region $(AWS_REGION) --profile bsideslv25 --name $$(cd terraform/aws && terraform output -raw cluster_name)
+	@kubectl logs -n demo deployment/eks-to-azure --tail=20 --follow
+
 shell-aks:
 	@echo "$(CYAN)🚀 Connecting to AKS workload container...$(RESET)"
 	@az aks get-credentials --resource-group $$(cd terraform/azure && terraform output -raw resource_group_name) \
 		--name $$(cd terraform/azure && terraform output -raw cluster_name) --overwrite-existing --admin
 	@kubectl exec -it -n demo deployment/aks-to-aws -- /bin/sh
 
-# Get shell in EKS workload container  
 shell-eks:
 	@echo "$(CYAN)🚀 Connecting to EKS workload container...$(RESET)"
 	@aws eks update-kubeconfig --region $(AWS_REGION) --profile bsideslv25 --name $$(cd terraform/aws && terraform output -raw cluster_name)
 	@kubectl exec -it -n demo deployment/eks-to-azure -- /bin/sh
 
-# Clean up everything
 destroy:
 	@echo "$(RED)🧹 Destroying demo infrastructure...$(RESET)"
 	@echo "$(YELLOW)⚠️  This will delete all resources. Continue? [y/N]$(RESET)" && read ans && [ $${ans:-N} = y ]

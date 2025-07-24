@@ -13,11 +13,9 @@ provider "aws" {
   profile = "bsideslv25"
 }
 
-# Data sources
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
-# EKS Cluster
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
@@ -41,7 +39,6 @@ module "eks" {
       instance_types = ["t3.small"]
       capacity_type  = "ON_DEMAND"
       
-      # Ensure node groups are destroyed before cluster
       force_update_version = true
     }
   }
@@ -51,16 +48,13 @@ module "eks" {
     "kubernetes.io/cluster/${var.cluster_name}" = null
   }
   
-  # Cluster access
   cluster_endpoint_public_access = true
   
-  # Enable cluster creator admin access
   enable_cluster_creator_admin_permissions = true
   
   tags = var.tags
 }
 
-# VPC for EKS
 module "vpc" {
   source = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
@@ -75,7 +69,6 @@ module "vpc" {
   enable_nat_gateway = false
   enable_vpn_gateway = false
   
-  # Enable auto-assignment of public IPs for public subnets
   map_public_ip_on_launch = true
   
   enable_dns_hostnames = true
@@ -88,7 +81,6 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-# ECR Registry
 resource "aws_ecr_repository" "eks_to_azure" {
   name                 = "eks-to-azure"
   image_tag_mutability = "MUTABLE"
@@ -109,8 +101,8 @@ resource "aws_iam_openid_connect_provider" "aks" {
     "sts.amazonaws.com"
   ]
 
-  # AKS OIDC provider thumbprint (will be computed from the issuer URL)
-  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"]  # Common for AKS
+  # AKS OIDC provider thumbprint 
+  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"]  
 
   tags = var.tags
 }
