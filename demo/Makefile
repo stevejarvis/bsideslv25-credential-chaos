@@ -150,6 +150,17 @@ shell-eks:
 	@aws eks update-kubeconfig --region $(AWS_REGION) --profile bsideslv25 --name $$(cd terraform/aws && terraform output -raw cluster_name)
 	@kubectl exec -it -n demo deployment/eks-to-azure -- /bin/sh
 
+aws-ctx:
+	@echo "$(CYAN)🔄 Switching to AWS context...$(RESET)"
+	@aws eks update-kubeconfig --region $(AWS_REGION) --profile bsideslv25 --name $$(cd terraform/aws && terraform output -raw cluster_name)
+	@echo "$(GREEN)✅ Switched to AWS context!$(RESET)"
+
+azure-ctx:
+	@echo "$(CYAN)🔄 Switching to Azure context...$(RESET)"
+	@az aks get-credentials --resource-group $$(cd terraform/azure && terraform output -raw resource_group_name) \
+		--name $$(cd terraform/azure && terraform output -raw cluster_name) --overwrite-existing --admin
+	@echo "$(GREEN)✅ Switched to Azure context!$(RESET)"
+
 destroy:
 	@echo "$(RED)🧹 Destroying demo infrastructure...$(RESET)"
 	@echo "$(YELLOW)⚠️  This will delete all resources. Continue? [y/N]$(RESET)" && read ans && [ $${ans:-N} = y ]
