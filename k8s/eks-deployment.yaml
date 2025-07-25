@@ -50,6 +50,8 @@ spec:
               fieldPath: metadata.namespace
         - name: AWS_REGION
           value: "us-west-2"
+        - name: PYTHONUNBUFFERED
+          value: "1"
         resources:
           requests:
             memory: "128Mi"

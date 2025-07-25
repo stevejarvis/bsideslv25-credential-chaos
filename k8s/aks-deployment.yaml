@@ -40,6 +40,8 @@ spec:
               fieldPath: metadata.namespace
         - name: AWS_REGION
           value: "us-west-2"
+        - name: PYTHONUNBUFFERED
+          value: "1"
         volumeMounts:
         - name: aws-iam-token
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
