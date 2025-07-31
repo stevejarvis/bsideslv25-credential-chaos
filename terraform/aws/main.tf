@@ -26,10 +26,11 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.public_subnets
 
-  # Enable IRSA
   enable_irsa = true
 
-  # Node groups - single node for demo
+  # Cloudwatch was the first thing to run through my free tier!
+  cluster_enabled_log_types = []
+
   eks_managed_node_groups = {
     demo = {
       min_size     = 1
