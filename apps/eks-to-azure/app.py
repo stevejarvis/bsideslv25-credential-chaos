@@ -61,6 +61,7 @@ def get_oidc_token_from_identity_pool():
         identity_client = boto3.client('cognito-identity', region_name='us-west-2')
         
         # Call get_id with proper Logins map containing the IRSA token
+        # Intentional bug 3, the issuer in EKS has the protocol, but Cognito doesn't want it.
         eks_oidc_issuer = eks_oidc_issuer.replace('https://', '', 1)
         response = identity_client.get_id(
             IdentityPoolId=identity_pool_id,

@@ -9,7 +9,10 @@ metadata:
   name: workload-identity-sa
   namespace: demo
   annotations:
+    # Correct ISRA role ARN for EKS
     eks.amazonaws.com/role-arn: "${EKS_WORKLOAD_ROLE_ARN}"
+    # Intentional bug 2: wrong role ARN 
+    #eks.amazonaws.com/role-arn: "arn:aws:iam::190988937987:role/WrongEKSRole"
 ---
 apiVersion: apps/v1
 kind: Deployment

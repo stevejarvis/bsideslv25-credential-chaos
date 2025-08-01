@@ -148,17 +148,17 @@ Since full deployment takes 20+ minutes (too slow for live demo), the presentati
 
 IAM IdP has a bad issuer, AKS cluster ID changed.
 `kubectl logs -n demo deployment/aks-to-aws --tail=20 --follow` to check.
-Fix in `terraform/aws/main.tf`, then `make deploy-aws`.
+Fix in `terraform/aws/main.tf:102`, then `make deploy-aws`.
 
 2. **Kubernetes Level**: IRSA (and/or AKS token projection) misconfigured, no OIDC token from service account
 
 Missing the EKS service account annotation.
 `kubectl -n demo get serviceaccount -o yaml` to check.
-Fix at `k8s/eks-deployment.yaml`, then `make deploy-apps`.
+Fix at `k8s/eks-deployment.yaml:13`, then `make deploy-apps`.
 
 3. **Application Level**: Authentication logic bugs in the applications
 
 EKS application providing wrong format of login provider to the call to get the OIDC JWT.
-Code fix, then `make build && make deploy-apps`. Might need a `kubectl -n demo delete pod <pod id>` to repull.
+Code fix in `eks-to-azure/app.py:65`, then `make build && make deploy-apps`. Might need a `make refresh-eks` to repull.
 
 This breakdown demonstrates failures at infrastructure, Kubernetes, and application layers, a good spread. Can make some mermaid diagrams here to illustrate the break points maybe. Or just have one to point at to stay oriented.

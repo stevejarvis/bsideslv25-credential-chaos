@@ -96,7 +96,14 @@ resource "aws_ecr_repository" "eks_to_azure" {
 
 # OIDC Provider for AKS
 resource "aws_iam_openid_connect_provider" "aks" {
+  # AKS issuer looks like https://<region>.oic.prod-aks.azure.com/<subscription-id>/<cluster-id>/: 
+  # e.g. https://westus2.oic.prod-aks.azure.com/2594271e-ae24-4262-8f77-fd1309e901a4/ff4628fa-46e5-47e2-9041-b8ef148a6f2e/
+
+  # Correct
   url = var.aks_oidc_issuer_url
+
+  # Intentional bug 1, assume this was an issuer on last deployment
+  #url = "https://westus2.oic.prod-aks.azure.com/2594271e-ae24-4262-8f77-fd1309e901a4/ff4628fa-46e5-47e2-9041-b8ef148a6f2e/"
 
   client_id_list = [
     "sts.amazonaws.com"
