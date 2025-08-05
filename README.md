@@ -146,19 +146,39 @@ Since full deployment takes 20+ minutes (too slow for live demo), the presentati
 
 1. **Cloud Infrastructure**: IAM roles not configured to trust OIDC providers  
 
+Error is:
+```
+Failed to assume AWS role: An error occurred (InvalidIdentityToken) when calling the AssumeRoleWithWebIdentity operation: No OpenIDConnect provider found in your account for https://westus2.oic.prod-aks.azure.com/2594271e-ae24-4262-8f77-fd1309e901a4/ff4628fa-46e5-47e2-9041-b8ef148a6f2a/
+```
+
+Fix is:
 IAM IdP has a bad issuer, AKS cluster ID changed.
 `kubectl logs -n demo deployment/aks-to-aws --tail=20 --follow` to check.
 Fix in `terraform/aws/main.tf:102`, then `make deploy-aws`.
 
-2. **Kubernetes Level**: IRSA (and/or AKS token projection) misconfigured, no OIDC token from service account
+2. **Kubernetes Level**: IRSA (and/or AKS token projection) misconfigured, wrong OIDC token from service account
 
 Missing the EKS service account annotation.
-`kubectl -n demo get serviceaccount -o yaml` to check.
-Fix at `k8s/eks-deployment.yaml:13`, then `make deploy-apps`.
+
+Error is:
+
+```
+Failed to get OIDC token from Identity Pool: An error occurred (AccessDenied) when calling the AssumeRoleWithWebIdentity operation: Not authorized to perform sts:AssumeRoleWithWebIdentity
+```
+
+Fix is:
+`kubectl -n demo get serviceaccount -o yaml` to check. 
+Fix at `k8s/eks-deployment.yaml:13`, then `make deploy-apps`, and `make refresh-eks` if the pod didn't automatically restart.
 
 3. **Application Level**: Authentication logic bugs in the applications
 
+Error is:
+```
+Failed to get OIDC token from Identity Pool: An error occurred (NotAuthorizedException) when calling the GetId operation: Invalid login token. Issuer doesn't match providerName
+```
+
+Fix is:
 EKS application providing wrong format of login provider to the call to get the OIDC JWT.
-Code fix in `eks-to-azure/app.py:65`, then `make build && make deploy-apps`. Might need a `make refresh-eks` to repull.
+Code fix in `eks-to-azure/app.py:65`, then `make build && make push && make refresh-eks`.
 
 This breakdown demonstrates failures at infrastructure, Kubernetes, and application layers, a good spread. Can make some mermaid diagrams here to illustrate the break points maybe. Or just have one to point at to stay oriented.
